@@ -75,7 +75,7 @@ class Trader:
 
     def sell(self, symbol):
         if symbol in self.api.positions_as_symbols():
-            self.api.positions(symbol, True)
+            self.api.close_position(symbol)
             print(f'--- CLOSING POSITION ---\n    {symbol}')
 
 
