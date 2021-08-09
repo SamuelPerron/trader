@@ -43,7 +43,9 @@ class MACD(Strategy):
         Returns if a crossover occured 
         and if it was below the 0 line.
         """
-        return (abs(macd) - abs(signal)) <= self.macd_crossover_threshold, macd < 0 and signal < 0
+        return (
+            abs(macd) - abs(signal)
+        ) <= self.macd_crossover_threshold, macd < 0 and signal < 0
 
 
     def find_next_symbols(self):

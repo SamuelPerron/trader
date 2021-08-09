@@ -22,6 +22,7 @@ class Trader:
         next_open = datetime.strptime(clock['next_open'][:-6], '%Y-%m-%dT%H:%M:%S')
         time.sleep(2)
         now = datetime.now()
+
         if clock['is_open']:
             self.health_print(now)
 
@@ -30,7 +31,10 @@ class Trader:
             
             self.fetch_symbols()
 
-            symbols_bars = self.api.bars(self.symbols, timeframe=self.timeframe, big_brain=True)
+            symbols_bars = self.api.bars(
+                self.symbols, timeframe=self.timeframe, big_brain=True
+            )
+
             for symbol_bars in symbols_bars:
                 if self.strategy.check_for_entry_signal(symbol_bars.df):
                     self.buy(symbol_bars.symbol, symbol_bars.df['c'])
@@ -43,20 +47,29 @@ class Trader:
             print(f'--- NEW SYMBOLS | {now.strftime("%Y-%m-%d")} ---\n{", ".join(self.symbols)}')
 
         else:
-            next_open_minutes = round((next_open - now).total_seconds() / 60, 0)
+            next_open_minutes = round(
+                (next_open - now).total_seconds() / 60, 0
+            )
+
             if next_open_minutes < 60:
                 print(f'Markets open in {next_open_minutes} minutes.')
+
             else:
                 print('Markets closed.')
+
             self.remove_symbols()
 
 
     def buy(self, symbol, price):
-        if len(self.api.orders(filters={'status': 'open', 'symbols': symbol})) == 0:
+        if len(
+            self.api.orders(filters={'status': 'open', 'symbols': symbol})
+        ) == 0:
+        
             price = price.iloc[-1]
             stop_loss = self.strategy.find_stop_loss(price)
             buying_power = float(self.api.account()['buying_power'])
             qty = self.strategy.find_qty(price, buying_power)
+
             if qty > 0:
                 order = {
                     'symbol': symbol,
@@ -69,6 +82,7 @@ class Trader:
                         'limit_price': stop_loss - 0.04
                     }
                 }
+                
                 self.api.new_order(order)
                 print(f'--- BUY ORDER ---\n    {symbol} x{qty} @ $ {round(float(price), 2)}')
 
@@ -108,9 +122,19 @@ class Trader:
 
         
     def health_print(self, now):
+        """
+        Logs current status of the account in the console
+        """
+
         print(f'\n\n{now.strftime("%Y-%m-%d %H:%M:%S")}')
+
         account = self.api.account()
-        last_equity = float(account['last_equity'])
-        equity = float(account['equity'])
-        pl = round((((equity * 100) / last_equity) - 100), 2)
+        last_equity = account['last_equity']
+        equity = account['equity']
+        pl = round(
+            (
+                ((equity * 100) / last_equity) - 100
+            ), 2
+        )
+
         print(f'BP: $ {account["buying_power"]} | PV: $ {equity} | P/L: {pl}%')

@@ -63,7 +63,7 @@ class API:
         return [position['symbol'] for position in self.positions()]
 
 
-    def orders(self):
+    def orders(self, filters={}):
         # TODO: Handle filtering
         url = 'orders'
         method = 'get'
@@ -72,12 +72,15 @@ class API:
 
 
     def new_order(self, details):
+        # TODO: Stop loss
+
         details.update({'time_in_force': 'gtc'})
         required_fields = ('symbol', 'qty', 'side', 'type')
 
         type = details.get('type')
         if type in ('limit', 'stop_limit'):
             required_fields.append('limit_price')
+
         if type in ('stop', 'stop_limit', 'trailing_stop'):
             required_fields.append('stop_price')
 
@@ -96,7 +99,7 @@ class API:
 
 
     def close_position(self, symbol):
-        method = 'post'       
+        method = 'post'
         url = 'close'
 
         position_ids = []
@@ -109,7 +112,7 @@ class API:
             'ids': position_ids,
         }
 
-        return self.api('post', 'close', data=data).json()
+        return self.api(method, url, data=data).json()
 
 
     def bars(self, symbols, timeframe, limit=200, big_brain=False):
