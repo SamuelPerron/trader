@@ -9,6 +9,12 @@ services:
       - .:/trader
     env_file:
       - .env
+    networks:
+      - llama_api
 
 volumes:
   app: {}
+
+networks:
+  llama_api:
+    external: true
