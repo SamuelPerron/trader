@@ -1,5 +1,5 @@
-from alpaca_paper.strategies import Strategy
-from alpaca_paper.screeners import MarketWatch
+from . import Strategy
+from ..screeners import MarketWatch
 
 
 class MACD(Strategy):

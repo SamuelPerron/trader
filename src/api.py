@@ -1,10 +1,7 @@
 from .big_brain import BigBrain
 import requests
 import os
-from dotenv import load_dotenv
 
-
-load_dotenv()
 
 # --- ENV variables --- #
 LLAMA_URL = os.getenv('LLAMA_URL')
