@@ -28,7 +28,7 @@ class Trader:
 
     def trade(self):
         now = datetime.now()
-        log(now)
+        log(f'--- {now.strftime("%Y-%m-%d %H:%M:%S")} ---')
 
         clock = self.api.clock()
         next_open = datetime.strptime(clock['next_open'][:-6], '%Y-%m-%dT%H:%M:%S')
