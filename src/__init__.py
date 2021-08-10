@@ -1,4 +1,5 @@
 from .api import API
+from .utils import log
 from datetime import datetime
 import csv
 import os
@@ -14,14 +15,23 @@ class Trader:
         self.timeframe = 'minute'
         self.symbols = []
 
-        self.trade()
+
+    def sleep(self, sleep_time=60):
+        if sleep_time >= 60:
+            log(f'Sleeping for {round(sleep_time / 60)} minutes...')
+
+        else:
+            log(f'Sleeping for {sleep_time} seconds...')
+
+        time.sleep(sleep_time)
 
 
     def trade(self):
+        now = datetime.now()
+        log(now)
+
         clock = self.api.clock()
         next_open = datetime.strptime(clock['next_open'][:-6], '%Y-%m-%dT%H:%M:%S')
-        time.sleep(2)
-        now = datetime.now()
 
         if clock['is_open']:
             self.health_print(now)
@@ -41,10 +51,13 @@ class Trader:
 
                 if self.strategy.check_for_exit_signal(symbol_bars.df):
                     self.sell(symbol_bars.symbol)
+                    
+            self.sleep(self.strategy.sleep)
 
         elif (next_open - now).total_seconds() <= 120:
             self.find_next_symbols()
-            print(f'--- NEW SYMBOLS | {now.strftime("%Y-%m-%d")} ---\n{", ".join(self.symbols)}')
+            log(f'--- NEW SYMBOLS | {now.strftime("%Y-%m-%d")} ---\n{", ".join(self.symbols)}')
+            self.sleep()
 
         else:
             next_open_minutes = round(
@@ -52,12 +65,15 @@ class Trader:
             )
 
             if next_open_minutes < 60:
-                print(f'Markets open in {next_open_minutes} minutes.')
+                log(f'Markets open in {next_open_minutes} minutes.')
+                sleep_time = 60 * 20
 
             else:
-                print('Markets closed.')
+                log('Markets closed.')
+                sleep_time = 60 * 60
 
             self.remove_symbols()
+            self.sleep(sleep_time)
 
 
     def buy(self, symbol, price):
@@ -84,13 +100,13 @@ class Trader:
                 }
                 
                 self.api.new_order(order)
-                print(f'--- BUY ORDER ---\n    {symbol} x{qty} @ $ {round(float(price), 2)}')
+                log(f'--- BUY ORDER ---\n    {symbol} x{qty} @ $ {round(float(price), 2)}')
 
 
     def sell(self, symbol):
         if symbol in self.api.positions_as_symbols():
             self.api.close_position(symbol)
-            print(f'--- CLOSING POSITION ---\n    {symbol}')
+            log(f'--- CLOSING POSITION ---\n    {symbol}')
 
 
     def find_next_symbols(self):
@@ -126,7 +142,7 @@ class Trader:
         Logs current status of the account in the console
         """
 
-        print(f'\n\n{now.strftime("%Y-%m-%d %H:%M:%S")}')
+        log(f'\n\n{now.strftime("%Y-%m-%d %H:%M:%S")}')
 
         account = self.api.account()
         last_equity = account['last_equity']
@@ -137,4 +153,4 @@ class Trader:
             ), 2
         )
 
-        print(f'BP: $ {account["buying_power"]} | PV: $ {equity} | P/L: {pl}%')
+        log(f'BP: $ {account["buying_power"]} | PV: $ {equity} | P/L: {pl}%')
