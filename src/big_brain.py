@@ -2,9 +2,13 @@ import pandas as pd
 
 
 class BigBrain:
-    def __init__(self, symbol, data):
+    def __init__(self, symbol, data=None, df=None):
         self.symbol = symbol
-        self.df = pd.DataFrame(data).set_index('t')
+
+        if data is not None:
+            self.df = pd.DataFrame(data).set_index('t')
+        elif df is not None:
+            self.df = df
 
         self.df['RSI'] = self.get_rsi()
         self.df['MACD'] = self.get_macd()
