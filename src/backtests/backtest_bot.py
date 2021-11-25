@@ -7,6 +7,7 @@ from typing import Optional
 from src.strategies import Strategy
 from src.utils import CoolEnum
 from src.big_brain import BigBrain
+from src.strategies.MACD import MACD
 
 
 class IntervalUnitChoices(CoolEnum):
@@ -45,7 +46,7 @@ class BacktestBot:
         """
 
         self.symbol = symbol
-        self.strategy = strategy
+        self.strategy = MACD()
         self.interval = self.compute_interval_to_timedelta(interval)
         self.starting_capital = starting_capital
         self.money_added_at_interval = money_added_at_interval
@@ -117,7 +118,7 @@ class BacktestBot:
             df['invested_capital'] = self.starting_capital
             return df
 
-        def calculate_invested_capital(invested_capital, movement):
+        def calculate_invested_capital(invested_capital: list, movement: list) -> list:
             res = np.empty(invested_capital.shape)
             res[0] = invested_capital[0]
             for i in range(1, invested_capital.shape[0]):
@@ -135,9 +136,11 @@ class BacktestBot:
         return df
 
     def _add_buy_signals(self, df: pd.DataFrame) -> pd.DataFrame:
+        df['buy'] = df.apply(lambda row: self.strategy.entry_signal(row), axis=1)
         return df
 
     def _add_sell_signals(self, df: pd.DataFrame) -> pd.DataFrame:
+        df['exit'] = df.apply(lambda row: self.strategy.exit_signal(row), axis=1)
         return df
 
     def get_dates_from_intervals(self, start: datetime, end: datetime) -> list:

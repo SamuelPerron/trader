@@ -14,26 +14,35 @@ class MACD(Strategy):
 
 
     def check_for_entry_signal(self, data, *args, **kwargs):
-        buy = False
         data_point = data.iloc[-1]
+        return self.entry_signal(data_point)
 
-        crossover, below_zero = self.is_macd_crossover(data_point['MACD'], data_point['MACD Signal'])
+
+    def entry_signal(self, row):
+        buy = False
+        crossover, below_zero = self.is_macd_crossover(row['MACD'], row['MACD Signal'])
+
+        crossover, below_zero = self.is_macd_crossover(row['MACD'], row['MACD Signal'])
         if crossover and\
         below_zero and\
-        data_point['5d_ma'] > data_point['200d_ma']:
+        row['5d_ma'] > row['200d_ma']:
             buy = True
 
         return buy
 
     
     def check_for_exit_signal(self, data, *args, **kwargs):
-        sell = False
         data_point = data.iloc[-1]
+        return self.exit_signal(data_point)
 
-        crossover, below_zero = self.is_macd_crossover(data_point['MACD'], data_point['MACD Signal'])
+
+    def exit_signal(self, row):
+        sell = False
+
+        crossover, below_zero = self.is_macd_crossover(row['MACD'], row['MACD Signal'])
         if crossover and\
         not below_zero and\
-        data_point['RSI'] >= self.overbought_rsi:
+        row['RSI'] >= self.overbought_rsi:
             sell = True
 
         return sell
