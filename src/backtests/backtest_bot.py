@@ -54,7 +54,8 @@ class BacktestBot:
 
         self.df = self.load_df()
 
-        self.df.plot(y=['available_capital', 'c'], kind = 'line')
+        self.df.plot(y=['portfolio_worth', 'c', 'invested_capital'], kind = 'line')
+        self.df.to_csv('df.csv', index=True)
         plt.show()
 
     @staticmethod
@@ -142,38 +143,72 @@ class BacktestBot:
         return df
 
     def _invest(self, df):
-        def get_available_capital(capital, price, buy, sell) -> list:
-            result = np.empty(capital.shape)
-            result[0] = capital[0]
-            quantities = []
+        def get_available_capital_and_quantities(
+            capital, 
+            price, 
+            buy, 
+            sell, 
+            invested_capital_movement,
+        ) -> list:
+            available_capital = np.empty(capital.shape)
+            quantities = np.empty(capital.shape)
+
+            available_capital[0] = capital[0]
+            quantities[0] = 0
+
+            nb_quantities = []
             for i in range(1, capital.shape[0]):
                 if buy[i]:
-                    qty = self.strategy.find_qty(price[i], result[i-1])
+                    qty = self.strategy.find_qty(price[i], available_capital[i-1])
                     if qty != 0:
-                        quantities.append(qty)
-                        price_of_buy = quantities[-1] * price[i]
-                        result[i] = result[i-1] - price_of_buy
+                        nb_quantities.append(qty)
+                        quantities[i] = qty
+                        price_of_buy = nb_quantities[-1] * price[i]
+                        available_capital[i] = available_capital[i-1] - price_of_buy
                     
                     else:
-                        result[i] = result[i-1]
+                        available_capital[i] = available_capital[i-1]
+                        quantities[i] = 0
 
-                elif sell[i] and len(quantities) != 0:
-                    roi = sum(quantities) * price[i]
-                    result[i] = result[i-1] + roi
-                    quantities = []
+                elif sell[i] and len(nb_quantities) != 0:
+                    roi = sum(nb_quantities) * price[i]
+                    available_capital[i] = available_capital[i-1] + roi
+                    quantities[i] = -sum(nb_quantities)
+                    nb_quantities = []
 
                 else:
-                    result[i] = result[i-1]
+                    available_capital[i] = available_capital[i-1]
+                    quantities[i] = 0
 
-            return result
+                available_capital[i] += float(invested_capital_movement[i])
+
+            return available_capital, quantities
+
+        def calculate_portfolio_worth(available_capital, price, quantities) -> list:
+            portfolio_worth = np.empty(available_capital.shape)
+            portfolio_worth[0] = available_capital[0]
+            running_quantities = 0
+            for i in range(1, available_capital.shape[0]):
+                running_quantities += quantities[i]
+                portfolio_worth[i] = available_capital[i] + (running_quantities * price[i])
+
+            return portfolio_worth
 
         df.loc[df.index[0], 'available_capital'] = self.starting_capital
-        df['available_capital'] = get_available_capital(
+        df['available_capital'], df['quantities'] = get_available_capital_and_quantities(
             df['available_capital'].values.T,
             df['c'].values.T,
             df['buy'].values.T,
             df['sell'].values.T,
+            df['invested_capital_movement'].values.T,
         )
+
+        df['portfolio_worth'] = calculate_portfolio_worth(
+            df['available_capital'].values.T,
+            df['c'].values.T,
+            df['quantities'].values.T,
+        )
+
         return df
 
     def get_dates_from_intervals(self, start: datetime, end: datetime) -> list:
