@@ -54,7 +54,17 @@ class BacktestBot:
 
         self.df = self.load_df()
 
-        self.df.plot(y=['portfolio_worth', 'c', 'invested_capital', 'stop_loss'], kind = 'line')
+        self.df.rename(columns = {
+            'c': 'Price', 
+            'portfolio_worth': 'Portfolio worth',
+            'invested_capital': 'Invested Capital',
+        }, inplace = True)
+        self.df.plot(
+            y=['Portfolio worth', 'Price', 'Invested Capital',], 
+            kind='line',
+            xlabel='Time',
+            ylabel='$'
+        )
         self.df.to_csv('df.csv', index=True)
 
         last_row = self.df.iloc[-1]
@@ -62,12 +72,16 @@ class BacktestBot:
         RESULTS
         -------
 
-        ROI: {(abs(last_row['invested_capital'] - last_row['portfolio_worth']) / ((last_row['invested_capital'] + last_row['portfolio_worth']) / 2)) * 100}%
-        Total invested: {last_row['invested_capital']}$
-        Portfolio worth: {last_row['portfolio_worth']}$
+        ROI: {self.prettify_number((abs(last_row['Invested Capital'] - last_row['Portfolio worth']) / ((last_row['Invested Capital'] + last_row['Portfolio worth']) / 2)) * 100)}%
+        Total invested: {self.prettify_number(last_row['Invested Capital'])}$
+        Portfolio worth: {self.prettify_number(last_row['Portfolio worth'])}$
         """)
 
         plt.show()
+
+    @staticmethod
+    def prettify_number(number):
+        return '{:,.2f}'.format(number)
 
     @staticmethod
     def compute_interval_to_timedelta(interval: str) -> timedelta:
