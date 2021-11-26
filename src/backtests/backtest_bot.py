@@ -240,6 +240,9 @@ class BacktestBot:
         df['v'] = df['v'].apply(pd.to_numeric)
         df = df.set_index('t')
 
+        # Remove errors in data
+        df = df.dropna()
+
         # Feed it to BigBrain
         df = BigBrain(symbol=self.symbol, df=df).df
 
@@ -319,7 +322,12 @@ class BacktestBot:
                     stop_loss_condition or sell[i]
                 )
 
-                qty = self.strategy.find_qty(price[i], available_capital[i-1])
+                try:
+                    qty = self.strategy.find_qty(price[i], available_capital[i-1])
+                except ValueError:
+                    raise ValueError(
+                        f'There is probably an error with the data at line {i+2}'
+                    )
 
                 gross_profit[i] = 0
                 gross_loss[i] = 0

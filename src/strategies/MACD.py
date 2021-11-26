@@ -3,15 +3,14 @@ from ..screeners import MarketWatch
 
 
 class MACD(Strategy):
-    def __init__(self):
-        self.name = 'MACD'
-        self.sleep = 60
-        self.stop_loss_and_sell_signal = True # RISKY
-        self.position_size = 0.15
-        self.stop_loss = 0.021
-        self.take_profit = 0.02
-        self.overbought_rsi = 70
-        self.macd_crossover_threshold = 0.02
+    name = 'MACD'
+    sleep = 60
+    stop_loss_and_sell_signal = True # RISKY
+    position_size = 0.3
+    stop_loss = 0.025
+    take_profit = 0.02
+    overbought_rsi = 70
+    macd_crossover_threshold = 0.015
 
 
     def check_for_entry_signal(self, data, *args, **kwargs):
