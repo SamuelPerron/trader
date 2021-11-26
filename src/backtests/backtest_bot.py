@@ -54,27 +54,85 @@ class BacktestBot:
 
         self.df = self.load_df()
 
+        self.print_final_results()
+
+    def print_final_results(self):
+        def find_trade_dates(side):
+            rows = self.df.loc[self.df[side]]
+            rows = rows.loc[self.df['quantities'] != 0]
+            return rows
+        
+        def get_global_roi():
+            return (abs(last_row['Invested Capital'] - last_row['Portfolio worth']) / ((last_row['Invested Capital'] + last_row['Portfolio worth']) / 2)) * 100
+
+        def get_annualized_returns():
+            start, end = self.df.index[0], self.df.index[-1]
+            nb_years = end.year - start.year
+            return get_global_roi() / nb_years
+
+        def get_number_of_trades():
+            return self.df.buy.value_counts().loc[True]
+
+        buy_points = find_trade_dates('buy')
+        sell_points = find_trade_dates('sell')
+
         self.df.rename(columns = {
             'c': 'Price', 
             'portfolio_worth': 'Portfolio worth',
             'invested_capital': 'Invested Capital',
         }, inplace = True)
-        self.df.plot(
-            y=['Portfolio worth', 'Price', 'Invested Capital',], 
+
+        fig, ax = plt.subplots()
+        main_plot = self.df.plot(
+            y=['Portfolio worth', 'Invested Capital', 'Price',], 
             kind='line',
             xlabel='Time',
-            ylabel='$'
+            ylabel='Portfolio worth',
+            secondary_y='Price',
+            color={
+                'Portfolio worth': (0, 0.5, 1, 1),
+                'Invested Capital': (1, 0.5, 0.25, 1),
+                'Price': (0, 0.5, 1, 0.25),
+            },
+            ax=ax,
         )
+        buy_points.reset_index().plot(
+            kind='scatter', 
+            x='t', 
+            y='portfolio_worth',
+            color='green', 
+            ax=ax, 
+            s=30, 
+            label='Position open points',
+        )
+        sell_points.reset_index().plot(
+            kind='scatter', 
+            x='t', 
+            y='portfolio_worth',
+            color='red', 
+            ax=ax, 
+            s=20, 
+            label='Position close points',
+        )
+
         self.df.to_csv('df.csv', index=True)
 
         last_row = self.df.iloc[-1]
+
+        global_roi = self.prettify_number(get_global_roi())
+        annualized_returns = self.prettify_number(get_annualized_returns())
+        nb_trades = get_number_of_trades()
+
         print(f"""
         RESULTS
         -------
 
-        ROI: {self.prettify_number((abs(last_row['Invested Capital'] - last_row['Portfolio worth']) / ((last_row['Invested Capital'] + last_row['Portfolio worth']) / 2)) * 100)}%
+        Global ROI: {global_roi}%
         Total invested: {self.prettify_number(last_row['Invested Capital'])}$
-        Portfolio worth: {self.prettify_number(last_row['Portfolio worth'])}$
+        Final portfolio worth: {self.prettify_number(last_row['Portfolio worth'])}$
+
+        Annualized ROI: {annualized_returns}%
+        Total number of trades: {nb_trades} 
         """)
 
         plt.show()
