@@ -7,7 +7,7 @@ class MACD(Strategy):
         self.name = 'MACD'
         self.sleep = 60
         self.position_size = 0.15
-        self.stop_loss = 0.025
+        self.stop_loss = 0.021
         self.take_profit = 0.02
         self.overbought_rsi = 70
         self.macd_crossover_threshold = 0.02

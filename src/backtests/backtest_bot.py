@@ -54,8 +54,19 @@ class BacktestBot:
 
         self.df = self.load_df()
 
-        self.df.plot(y=['portfolio_worth', 'c', 'invested_capital'], kind = 'line')
+        self.df.plot(y=['portfolio_worth', 'c', 'invested_capital', 'stop_loss'], kind = 'line')
         self.df.to_csv('df.csv', index=True)
+
+        last_row = self.df.iloc[-1]
+        print(f"""
+        RESULTS
+        -------
+
+        ROI: {(abs(last_row['invested_capital'] - last_row['portfolio_worth']) / ((last_row['invested_capital'] + last_row['portfolio_worth']) / 2)) * 100}%
+        Total invested: {last_row['invested_capital']}$
+        Portfolio worth: {last_row['portfolio_worth']}$
+        """)
+
         plt.show()
 
     @staticmethod
@@ -152,29 +163,50 @@ class BacktestBot:
         ) -> list:
             available_capital = np.empty(capital.shape)
             quantities = np.empty(capital.shape)
+            stop_loss = np.empty(capital.shape)
 
             available_capital[0] = capital[0]
             quantities[0] = 0
+            stop_loss[0] = 0
 
-            nb_quantities = []
+            running_quantities = []
+            running_stop_loss = {
+                'sum': 0,
+                'nb_stops': 0,
+            }
             for i in range(1, capital.shape[0]):
                 if buy[i]:
                     qty = self.strategy.find_qty(price[i], available_capital[i-1])
                     if qty != 0:
-                        nb_quantities.append(qty)
+                        running_quantities.append(qty)
                         quantities[i] = qty
-                        price_of_buy = nb_quantities[-1] * price[i]
+                        price_of_buy = running_quantities[-1] * price[i]
                         available_capital[i] = available_capital[i-1] - price_of_buy
+                        running_stop_loss['sum'] += self.strategy.find_stop_loss(
+                            price[i]
+                        )
+                        running_stop_loss['nb_stops'] += 1
                     
                     else:
                         available_capital[i] = available_capital[i-1]
                         quantities[i] = 0
 
-                elif sell[i] and len(nb_quantities) != 0:
-                    roi = sum(nb_quantities) * price[i]
+                elif (
+                    len(running_quantities) != 0
+                    and (
+                        (
+                            running_stop_loss['nb_stops'] > 0
+                            and (running_stop_loss['sum'] / running_stop_loss['nb_stops']) <= price[i]
+                        )
+                        and sell[i]
+                    )
+                ):
+                    roi = sum(running_quantities) * price[i]
                     available_capital[i] = available_capital[i-1] + roi
-                    quantities[i] = -sum(nb_quantities)
-                    nb_quantities = []
+                    quantities[i] = -sum(running_quantities)
+                    running_quantities = []
+                    running_stop_loss['sum'] = 0
+                    running_stop_loss['nb_stops'] = 0
 
                 else:
                     available_capital[i] = available_capital[i-1]
@@ -182,7 +214,9 @@ class BacktestBot:
 
                 available_capital[i] += float(invested_capital_movement[i])
 
-            return available_capital, quantities
+                stop_loss[i] = running_stop_loss['sum']
+
+            return available_capital, quantities, stop_loss
 
         def calculate_portfolio_worth(available_capital, price, quantities) -> list:
             portfolio_worth = np.empty(available_capital.shape)
@@ -195,7 +229,7 @@ class BacktestBot:
             return portfolio_worth
 
         df.loc[df.index[0], 'available_capital'] = self.starting_capital
-        df['available_capital'], df['quantities'] = get_available_capital_and_quantities(
+        df['available_capital'], df['quantities'], df['stop_loss'] = get_available_capital_and_quantities(
             df['available_capital'].values.T,
             df['c'].values.T,
             df['buy'].values.T,
