@@ -368,6 +368,7 @@ class BacktestBot:
                         and take_profit_condition
                     )
                 ):
+                    # TODO: It is not shown on graph when selling because of stop loss or take profit
                     roi = sum(running_quantities) * price[i]
                     available_capital[i] = available_capital[i-1] + roi
                     quantities[i] = -sum(running_quantities)
