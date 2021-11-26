@@ -8,7 +8,7 @@ from typing import Optional
 from src.strategies import Strategy
 from src.utils import CoolEnum
 from src.big_brain import BigBrain
-from src.strategies.MACD_and_hold import strategy as strategy_obj
+import importlib
 
 
 class IntervalUnitChoices(CoolEnum):
@@ -47,7 +47,7 @@ class BacktestBot:
         """
 
         self.symbol = symbol
-        self.strategy = strategy_obj
+        self.strategy = self.get_strategy(strategy)
         self.interval = self.compute_interval_to_timedelta(interval)
         self.starting_capital = starting_capital
         self.money_added_at_interval = money_added_at_interval
@@ -55,6 +55,9 @@ class BacktestBot:
         self.df = self.load_df()
 
         self.print_final_results()
+
+    def get_strategy(self, strategy_label):
+        return importlib.import_module(f'src.strategies.{strategy_label}').strategy
 
     def print_final_results(self):
         def find_trade_dates(side):
@@ -166,6 +169,9 @@ class BacktestBot:
         maximum_drawdown = self.prettify_number(get_maximum_drawdown())
 
         print(f"""
+        {self.strategy.name}
+
+        -------
         RESULTS
         -------
 
