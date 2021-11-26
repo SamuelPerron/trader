@@ -71,7 +71,37 @@ class BacktestBot:
             return get_global_roi() / nb_years
 
         def get_number_of_trades():
-            return self.df.buy.value_counts().loc[True]
+            closed_trades = self.df.sell.value_counts().loc[True]
+            closed_trades = self.df.where(self.df['sell']).dropna()
+            closed_trades = closed_trades.where(self.df['quantities'] != 0).dropna()
+            return len(closed_trades.index)
+
+        def get_gross(profit_or_loss):
+            return self.df[f'gross_{profit_or_loss}'].sum()
+
+        def get_gross_without_outliers(profit_or_loss):
+            serie = self.df[f'gross_{profit_or_loss}'].where(
+                self.df[f'gross_{profit_or_loss}'] != 0
+            ).dropna()
+            quantile1 = serie.quantile(0.25)
+            quantile3 = serie.quantile(0.75)
+            median_quantile = quantile3 - quantile1
+            result = ~((serie < (quantile1 - 1.5 * median_quantile)) | (serie > (quantile3 + 1.5 * median_quantile)))
+            result_without_outliers_indexes = result.index.where(result).dropna()
+            return serie.loc[serie.index.isin(result_without_outliers_indexes)].sum()
+
+        def get_percent_profitable():
+            nb_profitable = len(self.df.gross_profit.where(self.df.gross_profit > 0).dropna())
+            return (nb_profitable / get_number_of_trades()) * 100
+
+        def get_average_trade_net_profit():
+            return (get_gross('profit') - get_gross('loss')) / get_number_of_trades()
+
+        def get_normalized_average_trade_net_profit():
+            return (get_gross_without_outliers('profit') - get_gross_without_outliers('loss')) / get_number_of_trades()
+
+        def get_maximum_drawdown():
+            return self.df['gross_loss'].max()
 
         buy_points = find_trade_dates('buy')
         sell_points = find_trade_dates('sell')
@@ -122,6 +152,14 @@ class BacktestBot:
         global_roi = self.prettify_number(get_global_roi())
         annualized_returns = self.prettify_number(get_annualized_returns())
         nb_trades = get_number_of_trades()
+        gross_profit = self.prettify_number(get_gross('profit'))
+        gross_loss = self.prettify_number(get_gross('loss'))
+        total_net_profit = self.prettify_number(get_gross('profit') - get_gross('loss'))
+        profit_factor = self.prettify_number(get_gross('profit') / get_gross('loss'))
+        percent_profitable = self.prettify_number(get_percent_profitable())
+        average_trade_net_profit = self.prettify_number(get_average_trade_net_profit())
+        normalized_average_trade_net_profit = self.prettify_number(get_normalized_average_trade_net_profit())
+        maximum_drawdown = self.prettify_number(get_maximum_drawdown())
 
         print(f"""
         RESULTS
@@ -130,9 +168,17 @@ class BacktestBot:
         Global ROI: {global_roi}%
         Total invested: {self.prettify_number(last_row['Invested Capital'])}$
         Final portfolio worth: {self.prettify_number(last_row['Portfolio worth'])}$
-
         Annualized ROI: {annualized_returns}%
         Total number of trades: {nb_trades} 
+
+        Gross profit: {gross_profit}$
+        Gross loss: {gross_loss}$
+        Total net profit: {total_net_profit}$
+        Profit factor: {profit_factor}
+        Percent profitable: {percent_profitable}%
+        Average trade net profit: {average_trade_net_profit}$
+        Normalized average trade net profit: {normalized_average_trade_net_profit}$
+        Maximum Drawdown: {maximum_drawdown}$
         """)
 
         plt.show()
@@ -226,7 +272,7 @@ class BacktestBot:
         return df
 
     def _invest(self, df):
-        def get_available_capital_and_quantities(
+        def compute_data_points(
             capital, 
             price, 
             buy, 
@@ -236,10 +282,16 @@ class BacktestBot:
             available_capital = np.empty(capital.shape)
             quantities = np.empty(capital.shape)
             stop_loss = np.empty(capital.shape)
+            position_size = np.empty(capital.shape)
+            gross_profit = np.empty(capital.shape)
+            gross_loss = np.empty(capital.shape)
 
             available_capital[0] = capital[0]
             quantities[0] = 0
             stop_loss[0] = 0
+            position_size[0] = 0
+            gross_profit[0] = 0
+            gross_loss[0] = 0
 
             running_quantities = []
             running_stop_loss = {
@@ -251,28 +303,27 @@ class BacktestBot:
                     running_stop_loss['nb_stops'] > 0
                     and (running_stop_loss['sum'] / running_stop_loss['nb_stops']) <= price[i]
                 )
-
                 sell_condition = (
                     stop_loss_condition and sell[i]
                 ) if self.strategy.stop_loss_and_sell_signal else (
                     stop_loss_condition or sell[i]
                 )
 
-                if buy[i]:
-                    qty = self.strategy.find_qty(price[i], available_capital[i-1])
-                    if qty != 0:
-                        running_quantities.append(qty)
-                        quantities[i] = qty
-                        price_of_buy = running_quantities[-1] * price[i]
-                        available_capital[i] = available_capital[i-1] - price_of_buy
-                        running_stop_loss['sum'] += self.strategy.find_stop_loss(
-                            price[i]
-                        )
-                        running_stop_loss['nb_stops'] += 1
-                    
-                    else:
-                        available_capital[i] = available_capital[i-1]
-                        quantities[i] = 0
+                qty = self.strategy.find_qty(price[i], available_capital[i-1])
+
+                gross_profit[i] = 0
+                gross_loss[i] = 0
+
+                if buy[i] and qty != 0:
+                    running_quantities.append(qty)
+                    quantities[i] = qty
+                    price_of_buy = running_quantities[-1] * price[i]
+                    available_capital[i] = available_capital[i-1] - price_of_buy
+                    running_stop_loss['sum'] += self.strategy.find_stop_loss(
+                        price[i]
+                    )
+                    running_stop_loss['nb_stops'] += 1
+                    position_size[i] = position_size[i-1] + price_of_buy
 
                 elif (
                     len(running_quantities) != 0
@@ -284,16 +335,29 @@ class BacktestBot:
                     running_quantities = []
                     running_stop_loss['sum'] = 0
                     running_stop_loss['nb_stops'] = 0
+                    if roi > position_size[i-1]:
+                        gross_profit[i] = roi - position_size[i-1]
+                    elif roi < position_size[i-1]:
+                        gross_loss[i] = position_size[i-1] - roi
+                    position_size[i] = 0
 
                 else:
                     available_capital[i] = available_capital[i-1]
                     quantities[i] = 0
+                    position_size[i] = position_size[i-1]
 
                 available_capital[i] += float(invested_capital_movement[i])
 
                 stop_loss[i] = running_stop_loss['sum']
 
-            return available_capital, quantities, stop_loss
+            return (
+                available_capital, 
+                quantities, 
+                stop_loss, 
+                position_size, 
+                gross_profit, 
+                gross_loss
+            )
 
         def calculate_portfolio_worth(available_capital, price, quantities) -> list:
             portfolio_worth = np.empty(available_capital.shape)
@@ -306,7 +370,14 @@ class BacktestBot:
             return portfolio_worth
 
         df.loc[df.index[0], 'available_capital'] = self.starting_capital
-        df['available_capital'], df['quantities'], df['stop_loss'] = get_available_capital_and_quantities(
+        (
+            df['available_capital'], 
+            df['quantities'], 
+            df['stop_loss'], 
+            df['position_size'],
+            df['gross_profit'],
+            df['gross_loss'],
+        ) = compute_data_points(
             df['available_capital'].values.T,
             df['c'].values.T,
             df['buy'].values.T,
