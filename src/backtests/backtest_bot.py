@@ -8,7 +8,7 @@ from typing import Optional
 from src.strategies import Strategy
 from src.utils import CoolEnum
 from src.big_brain import BigBrain
-from src.strategies.MACD import MACD
+from src.strategies.MACD_and_hold import strategy as strategy_obj
 
 
 class IntervalUnitChoices(CoolEnum):
@@ -47,7 +47,7 @@ class BacktestBot:
         """
 
         self.symbol = symbol
-        self.strategy = MACD()
+        self.strategy = strategy_obj
         self.interval = self.compute_interval_to_timedelta(interval)
         self.starting_capital = starting_capital
         self.money_added_at_interval = money_added_at_interval
@@ -71,7 +71,11 @@ class BacktestBot:
             return get_global_roi() / nb_years
 
         def get_number_of_trades():
-            closed_trades = self.df.sell.value_counts().loc[True]
+            try:
+                closed_trades = self.df.sell.value_counts().loc[True]
+            except KeyError:
+                return 1
+
             closed_trades = self.df.where(self.df['sell']).dropna()
             closed_trades = closed_trades.where(self.df['quantities'] != 0).dropna()
             return len(closed_trades.index)
