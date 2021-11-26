@@ -8,7 +8,7 @@ class MACD(Strategy):
     stop_loss_and_sell_signal = True # RISKY
     position_size = 0.3
     stop_loss = 0.025
-    take_profit = 0.02
+    take_profit = None
     overbought_rsi = 70
     macd_crossover_threshold = 0.015
 

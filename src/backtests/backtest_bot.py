@@ -295,6 +295,7 @@ class BacktestBot:
             available_capital = np.empty(capital.shape)
             quantities = np.empty(capital.shape)
             stop_loss = np.empty(capital.shape)
+            take_profit = np.empty(capital.shape)
             position_size = np.empty(capital.shape)
             gross_profit = np.empty(capital.shape)
             gross_loss = np.empty(capital.shape)
@@ -302,6 +303,7 @@ class BacktestBot:
             available_capital[0] = capital[0]
             quantities[0] = 0
             stop_loss[0] = 0
+            take_profit[0] = 0
             position_size[0] = 0
             gross_profit[0] = 0
             gross_loss[0] = 0
@@ -311,10 +313,19 @@ class BacktestBot:
                 'sum': 0,
                 'nb_stops': 0,
             }
+            running_take_profit = {
+                'sum': 0,
+                'nb_entries': 0,
+            }
             for i in range(1, capital.shape[0]):
                 stop_loss_condition = (
                     running_stop_loss['nb_stops'] > 0
                     and (running_stop_loss['sum'] / running_stop_loss['nb_stops']) <= price[i]
+                )
+                take_profit_condition = (
+                    self.strategy.take_profit is not None
+                    and running_take_profit['nb_entries'] > 0
+                    and (running_take_profit['sum'] / running_take_profit['nb_entries']) >= price[i]
                 )
                 sell_condition = (
                     stop_loss_condition and sell[i]
@@ -341,11 +352,21 @@ class BacktestBot:
                         price[i]
                     )
                     running_stop_loss['nb_stops'] += 1
+                    if self.strategy.take_profit is not None:
+                        running_take_profit['sum'] += self.strategy.find_take_profit(
+                            price[i]
+                        )
+                        running_take_profit['nb_entries'] += 1
                     position_size[i] = position_size[i-1] + price_of_buy
 
                 elif (
-                    len(running_quantities) != 0
-                    and sell_condition
+                    (
+                        len(running_quantities) != 0
+                        and sell_condition
+                    ) or (
+                        len(running_quantities) != 0
+                        and take_profit_condition
+                    )
                 ):
                     roi = sum(running_quantities) * price[i]
                     available_capital[i] = available_capital[i-1] + roi
@@ -353,6 +374,9 @@ class BacktestBot:
                     running_quantities = []
                     running_stop_loss['sum'] = 0
                     running_stop_loss['nb_stops'] = 0
+                    if self.strategy.take_profit is not None:
+                        running_take_profit['sum'] = 0
+                        running_take_profit['nb_entries'] = 0
                     if roi > position_size[i-1]:
                         gross_profit[i] = roi - position_size[i-1]
                     elif roi < position_size[i-1]:
