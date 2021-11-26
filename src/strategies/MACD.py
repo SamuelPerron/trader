@@ -6,6 +6,7 @@ class MACD(Strategy):
     def __init__(self):
         self.name = 'MACD'
         self.sleep = 60
+        self.stop_loss_and_sell_signal = True # RISKY
         self.position_size = 0.15
         self.stop_loss = 0.021
         self.take_profit = 0.02

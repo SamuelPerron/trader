@@ -175,6 +175,17 @@ class BacktestBot:
                 'nb_stops': 0,
             }
             for i in range(1, capital.shape[0]):
+                stop_loss_condition = (
+                    running_stop_loss['nb_stops'] > 0
+                    and (running_stop_loss['sum'] / running_stop_loss['nb_stops']) <= price[i]
+                )
+
+                sell_condition = (
+                    stop_loss_condition and sell[i]
+                ) if self.strategy.stop_loss_and_sell_signal else (
+                    stop_loss_condition or sell[i]
+                )
+
                 if buy[i]:
                     qty = self.strategy.find_qty(price[i], available_capital[i-1])
                     if qty != 0:
@@ -193,13 +204,7 @@ class BacktestBot:
 
                 elif (
                     len(running_quantities) != 0
-                    and (
-                        (
-                            running_stop_loss['nb_stops'] > 0
-                            and (running_stop_loss['sum'] / running_stop_loss['nb_stops']) <= price[i]
-                        )
-                        and sell[i]
-                    )
+                    and sell_condition
                 ):
                     roi = sum(running_quantities) * price[i]
                     available_capital[i] = available_capital[i-1] + roi
